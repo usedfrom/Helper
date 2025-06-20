@@ -6,8 +6,10 @@ export default async function handler(req, res) {
   try {
     const { image } = req.body;
     
-    if (!image) {
-      return res.status(400).json({ message: 'Image is required' });
+    if (!image?.startsWith('data:image/')) {
+      return res.status(400).json({ 
+        message: 'Valid base64 image is required' 
+      });
     }
 
     const backendResponse = await fetch(
@@ -18,39 +20,33 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ image }),
-        signal: AbortSignal.timeout(30000) // 30s timeout
+        signal: AbortSignal.timeout(45000) // увеличенный таймаут для прокси
       }
     );
 
-    const responseData = await backendResponse.json();
+    const data = await backendResponse.json();
 
     if (!backendResponse.ok) {
-      console.error('Backend error:', responseData);
+      console.error('Backend error:', data);
       throw new Error(
-        responseData.message || 
-        responseData.error?.message || 
-        'Backend request failed'
+        data.message || 
+        data.details || 
+        `Backend request failed (Proxy: ${data.proxyUsed || 'unknown'})`
       );
     }
 
-    res.status(200).json(responseData);
+    return res.status(200).json({
+      ...data,
+      proxyUsed: data.proxyUsed || 'unknown'
+    });
   } catch (error) {
     console.error('API route error:', error);
     
-    let statusCode = 500;
-    let message = 'Error processing your request';
-    
-    if (error.name === 'AbortError') {
-      statusCode = 504;
-      message = 'Request timeout';
-    } else if (error.message.includes('model_not_found')) {
-      statusCode = 503;
-      message = 'Service temporarily unavailable';
-    }
-    
-    res.status(statusCode).json({ 
-      message,
-      details: error.message 
+    const statusCode = error.name === 'AbortError' ? 504 : 500;
+    return res.status(statusCode).json({ 
+      message: 'Error processing request',
+      details: error.message,
+      proxyStatus: 'Proxy may be unavailable'
     });
   }
 }
