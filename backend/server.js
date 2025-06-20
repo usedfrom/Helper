@@ -9,8 +9,8 @@ const PORT = process.env.PORT || 5000;
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 
 app.use(cors());
@@ -40,13 +40,11 @@ app.post('/analyze', async (req, res) => {
       });
     }
 
-    const base64Data = image.split(';base64,').pop();
-    
-    // Call OpenAI API
+    // Call OpenAI API with current model
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: "gpt-4-vision-preview",
+        model: "gpt-4-turbo", // Updated model
         messages: [
           {
             role: "user",
@@ -75,7 +73,7 @@ app.post('/analyze', async (req, res) => {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 30000 // 30 seconds timeout
+        timeout: 30000
       }
     );
 
@@ -102,6 +100,9 @@ app.post('/analyze', async (req, res) => {
     } else if (error.response?.status === 401) {
       statusCode = 401;
       errorMessage = 'Authentication failed. Please check service configuration.';
+    } else if (error.response?.data?.error?.code === 'model_not_found') {
+      statusCode = 400;
+      errorMessage = 'The AI model is not available. Please contact support.';
     }
     
     res.status(statusCode).json({ 
@@ -117,10 +118,15 @@ app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).json({ 
     success: false,
-    message: 'Internal server error' 
+    message: 'Internal server error',
+    error: err.message
   });
 });
 
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`OpenAI model: gpt-4-turbo`);
+});
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`OpenAI model: gpt-4-vision-preview`);
