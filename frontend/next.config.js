@@ -3,43 +3,16 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: [],
-    unoptimized: true,
   },
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/api/:path*',
         headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob:",
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_BACKEND_URL} https://api.openai.com`,
-              "font-src 'self'",
-              "frame-src 'self'",
-              "media-src 'self' blob:"
-            ].join('; ')
-          },
-          { 
-            key: 'X-Content-Type-Options',
-            value: 'nosniff'
-          },
-          {
-            key: 'X-Forwarded-For',
-            value: '104.239.105.125'
-          }
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type,X-API-Key' },
         ],
-      },
-    ];
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/api/proxy/:path*',
-        destination: `${process.env.NEXT_PUBLIC_BACKEND_URL}/:path*`,
       },
     ];
   },
