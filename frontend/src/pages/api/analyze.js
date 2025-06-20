@@ -18,20 +18,39 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ image }),
+        signal: AbortSignal.timeout(30000) // 30s timeout
       }
     );
 
+    const responseData = await backendResponse.json();
+
     if (!backendResponse.ok) {
-      const errorData = await backendResponse.json();
-      throw new Error(errorData.message || 'Backend request failed');
+      console.error('Backend error:', responseData);
+      throw new Error(
+        responseData.message || 
+        responseData.error?.message || 
+        'Backend request failed'
+      );
     }
 
-    const data = await backendResponse.json();
-    res.status(200).json(data);
+    res.status(200).json(responseData);
   } catch (error) {
     console.error('API route error:', error);
-    res.status(500).json({ 
-      message: error.message || 'Internal server error' 
+    
+    let statusCode = 500;
+    let message = 'Error processing your request';
+    
+    if (error.name === 'AbortError') {
+      statusCode = 504;
+      message = 'Request timeout';
+    } else if (error.message.includes('model_not_found')) {
+      statusCode = 503;
+      message = 'Service temporarily unavailable';
+    }
+    
+    res.status(statusCode).json({ 
+      message,
+      details: error.message 
     });
   }
 }
