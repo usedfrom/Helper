@@ -7,11 +7,11 @@ export default function Home() {
   const [result, setResult] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [retryCamera, setRetryCamera] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [stream, setStream] = useState(null);
 
-  // Очистка стрима при размонтировании
   useEffect(() => {
     return () => {
       if (stream) {
@@ -24,13 +24,19 @@ export default function Home() {
     try {
       setError('');
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
       videoRef.current.srcObject = mediaStream;
       setStream(mediaStream);
+      setRetryCamera(false);
     } catch (err) {
       console.error("Camera error:", err);
-      setError('Could not access camera. Please check permissions.');
+      setError('Camera access is required. Please allow permissions and reload.');
+      setRetryCamera(true);
     }
   };
 
@@ -75,7 +81,8 @@ export default function Home() {
       });
       
       if (!response.ok) {
-        throw new Error(await response.text());
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.details || 'Request failed');
       }
       
       const data = await response.json();
@@ -136,6 +143,15 @@ export default function Home() {
         
         <canvas ref={canvasRef} style={{ display: 'none' }} />
         
+        {retryCamera && (
+          <button 
+            onClick={() => window.location.reload()}
+            className={styles.button}
+          >
+            Reload Page to Retry Camera
+          </button>
+        )}
+        
         {image && (
           <div className={styles.previewSection}>
             <h2>Captured Image</h2>
@@ -154,7 +170,14 @@ export default function Home() {
           </div>
         )}
         
-        {error && <div className={styles.error}>{error}</div>}
+        {error && (
+          <div className={styles.error}>
+            {error}
+            {error.includes('model_not_found') && (
+              <p>Please try again later or contact support</p>
+            )}
+          </div>
+        )}
         
         {result && (
           <div className={styles.resultSection}>
