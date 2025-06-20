@@ -3,9 +3,26 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const rateLimit = require('express-rate-limit');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Proxy configuration
+const proxyConfig = {
+  host: process.env.PROXY_HOST || '104.239.105.125',
+  port: process.env.PROXY_PORT || '6655',
+  auth: {
+    username: process.env.PROXY_USERNAME || 'iqmwofty',
+    password: process.env.PROXY_PASSWORD || 'jk8uespriwzc'
+  }
+};
+
+const proxyAgent = new HttpsProxyAgent({
+  host: proxyConfig.host,
+  port: proxyConfig.port,
+  auth: `${proxyConfig.auth.username}:${proxyConfig.auth.password}`
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -19,7 +36,10 @@ app.use(limiter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({ 
+    status: 'ok',
+    proxy: `${proxyConfig.host}:${proxyConfig.port}`
+  });
 });
 
 // Main analysis endpoint
@@ -28,23 +48,19 @@ app.post('/analyze', async (req, res) => {
     const { image } = req.body;
     
     if (!image) {
-      return res.status(400).json({ 
-        message: 'Image is required' 
-      });
+      return res.status(400).json({ message: 'Image is required' });
     }
 
-    // Validate base64 image
     if (!image.startsWith('data:image/')) {
       return res.status(400).json({ 
         message: 'Invalid image format. Please provide a valid base64 image.' 
       });
     }
 
-    // Call OpenAI API with current model
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: "gpt-4-turbo", // Updated model
+        model: "gpt-4-turbo",
         messages: [
           {
             role: "user",
@@ -73,7 +89,8 @@ app.post('/analyze', async (req, res) => {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 30000
+        httpsAgent: proxyAgent,
+        timeout: 40000
       }
     );
 
@@ -85,7 +102,8 @@ app.post('/analyze', async (req, res) => {
     
     res.json({ 
       success: true,
-      result 
+      result,
+      proxyUsed: `${proxyConfig.host}:${proxyConfig.port}`
     });
     
   } catch (error) {
@@ -108,7 +126,8 @@ app.post('/analyze', async (req, res) => {
     res.status(statusCode).json({ 
       success: false,
       message: errorMessage,
-      details: error.response?.data?.error?.message || error.message 
+      details: error.response?.data?.error?.message || error.message,
+      proxyUsed: `${proxyConfig.host}:${proxyConfig.port}`
     });
   }
 });
@@ -119,15 +138,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ 
     success: false,
     message: 'Internal server error',
-    error: err.message
+    error: err.message,
+    proxy: `${proxyConfig.host}:${proxyConfig.port}`
   });
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Using proxy: ${proxyConfig.host}:${proxyConfig.port}`);
   console.log(`OpenAI model: gpt-4-turbo`);
-});
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`OpenAI model: gpt-4-vision-preview`);
 });
