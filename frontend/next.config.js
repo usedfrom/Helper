@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: [],
-    unoptimized: true, // Для base64 изображений
+    unoptimized: true,
   },
   async headers() {
     return [
@@ -12,11 +12,24 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.onrender.com; img-src 'self' data:;"
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob:",
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_BACKEND_URL} https://api.openai.com`,
+              "font-src 'self'",
+              "frame-src 'self'",
+              "media-src 'self' blob:"
+            ].join('; ')
           },
           { 
             key: 'X-Content-Type-Options',
             value: 'nosniff'
+          },
+          {
+            key: 'X-Forwarded-For',
+            value: '104.239.105.125'
           }
         ],
       },
@@ -25,7 +38,7 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
+        source: '/api/proxy/:path*',
         destination: `${process.env.NEXT_PUBLIC_BACKEND_URL}/:path*`,
       },
     ];
